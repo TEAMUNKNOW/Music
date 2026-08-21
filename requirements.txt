@@ -1,0 +1,7 @@
+pyrogram==2.0.106
+TgCrypto>=1.2.5
+py-tgcalls==2.3.3
+yt-dlp>=2026.7.0,<2027
+python-dotenv>=1.1.1
+pytest>=8.4.0
+pytest-asyncio>=1.1.0
