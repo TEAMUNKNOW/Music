@@ -33,17 +33,17 @@ class MusicPlayer:
             state = await self.queues.state(chat_id)
             if state.current is not None:
                 return state.current
-            track = await self.queues.pop_next(chat_id)
-            if track is None:
-                return None
-            state.current = track
-            try:
-                await self.play_track(chat_id, track)
-                return track
-            except Exception:
-                log.exception("Failed to start track in %s", chat_id)
-                state.current = None
-                return await self.start_next(chat_id)
+            while True:
+                track = await self.queues.pop_next(chat_id)
+                if track is None:
+                    return None
+                state.current = track
+                try:
+                    await self.play_track(chat_id, track)
+                    return track
+                except Exception:
+                    log.exception("Failed to start track in %s", chat_id)
+                    state.current = None
 
     async def queue_or_play(self, chat_id: int, track: Track) -> tuple[bool, int]:
         lock = self._lock(chat_id)
@@ -66,18 +66,29 @@ class MusicPlayer:
             state = await self.queues.state(chat_id)
             await self.queues.mark_manual_action(chat_id, time.monotonic())
             state.current = None
+            track = await self.queues.pop_next(chat_id)
+            if track is None:
+                await self.calls.leave_call(chat_id)
+                return None
+            state.current = track
             try:
-                track = await self.queues.pop_next(chat_id)
-                if track is None:
-                    await self.calls.leave_call(chat_id)
-                    return None
-                state.current = track
                 await self.play_track(chat_id, track)
                 return track
             except Exception:
-                state.current = None
                 log.exception("Skip failed in %s", chat_id)
-                return await self.start_next(chat_id)
+                state.current = None
+                while True:
+                    track = await self.queues.pop_next(chat_id)
+                    if track is None:
+                        await self.calls.leave_call(chat_id)
+                        return None
+                    state.current = track
+                    try:
+                        await self.play_track(chat_id, track)
+                        return track
+                    except Exception:
+                        log.exception("Fallback track failed in %s", chat_id)
+                        state.current = None
 
     async def stop(self, chat_id: int) -> None:
         lock = self._lock(chat_id)
