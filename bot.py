@@ -73,9 +73,15 @@ async def play_handler(_: Client, message: Message) -> None:
         track = await resolve(query, requester)
         started, position = await player.queue_or_play(message.chat.id, track)
         if started:
-            await status.edit_text(f"▶️ **Playing:** [{track.title}]({track.webpage_url})", disable_web_page_preview=True)
+            await status.edit_text(
+                f"▶️ **Playing:** [{track.title}]({track.webpage_url})",
+                disable_web_page_preview=True,
+            )
         else:
-            await status.edit_text(f"➕ **Queued #{position}:** [{track.title}]({track.webpage_url})", disable_web_page_preview=True)
+            await status.edit_text(
+                f"➕ **Queued #{position}:** [{track.title}]({track.webpage_url})",
+                disable_web_page_preview=True,
+            )
     except Exception as exc:
         log.exception("Play failed")
         await status.edit_text(f"❌ Could not play that source.\n`{type(exc).__name__}`")
@@ -109,7 +115,9 @@ async def control_handler(_: Client, message: Message) -> None:
             await message.reply_text("▶️ Resumed.")
         elif command == "skip":
             track = await player.skip(message.chat.id)
-            await message.reply_text(f"⏭️ **Playing:** {track.title}" if track else "⏹️ Queue finished.")
+            await message.reply_text(
+                f"⏭️ **Playing:** {track.title}" if track else "⏹️ Queue finished."
+            )
         elif command == "stop":
             await player.stop(message.chat.id)
             await message.reply_text("⏹️ Stopped and cleared the queue.")
@@ -143,7 +151,6 @@ async def stream_end_handler(_: PyTgCalls, update: StreamEnded) -> None:
 
 async def main() -> None:
     calls.start()
-    await app.start()
     me = await app.get_me()
     log.info("Music bot started as @%s", me.username or me.id)
     try:
