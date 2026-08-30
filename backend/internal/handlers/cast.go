@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/TEAMUNKNOW/Music/internal/search"
 )
 
 type CastRequest struct {
-	ChatID   int64  `json:"chat_id"`
-	TrackID  string `json:"track_id"`
-	Title    string `json:"title"`
-	Artist   string `json:"artist"`
+	ChatID  int64  `json:"chat_id"`
+	TrackID string `json:"track_id"`
+	Title   string `json:"title"`
+	Artist  string `json:"artist"`
 }
 
 // CastToVC forwards a cast request to the userbot service
@@ -27,10 +29,12 @@ func CastToVC(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "chat_id and track_id required"})
 	}
 
-	// Resolve stream URL first
-	info, err := searchResolve(req.TrackID)
+	info, err := search.ResolveStream(req.TrackID, "")
 	if err != nil {
-		return c.Status(502).JSON(fiber.Map{"error": "could not resolve track", "details": err.Error()})
+		return c.Status(502).JSON(fiber.Map{
+			"error":   "could not resolve track",
+			"details": err.Error(),
+		})
 	}
 
 	castService := os.Getenv("CAST_SERVICE_URL")
@@ -66,21 +70,4 @@ func CastToVC(c *fiber.Ctx) error {
 		"chat_id": req.ChatID,
 		"title":   info.Title,
 	})
-}
-
-// helper to avoid circular import issues in this file
-func searchResolve(id string) (*struct {
-	URL    string
-	Title  string
-	Artist string
-}, error) {
-	info, err := resolveStream(id)
-	if err != nil {
-		return nil, err
-	}
-	return &struct {
-		URL    string
-		Title  string
-		Artist string
-	}{URL: info.URL, Title: info.Title, Artist: info.Artist}, nil
 }
