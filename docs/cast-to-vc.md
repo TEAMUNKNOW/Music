@@ -1,59 +1,39 @@
-# Cast to Group Voice Chat
+# Cast to Group Voice Chat (Optional)
 
-## Goal
-User is listening inside Mini App → taps **Cast to Group Voice Chat** → song starts playing in the Telegram group’s Voice Chat for everyone.
+This feature is **completely optional**.
 
-## Architecture
+- Agar `SESSION_STRING` (ya session file) + `API_ID` / `API_HASH` **nahi** diye → Cast disabled
+- Frontend me **Cast button hide** rehta hai
+- Backend `/api/cast` 503 return karta hai with clear message
+- Core music streaming (Mini App playback) bina userbot ke perfectly kaam karta hai
 
-```
-Mini App
-   │  POST /api/cast
-   ▼
-Go Backend
-   │  (validates user + track)
-   ▼
-Userbot / Stream Bridge
-   │  joins group VC as a participant
-   │  streams audio (raw PCM or Opus)
-   ▼
-Telegram Group Voice Chat
-```
+## Enable karne ke liye
 
-## Implementation Options
+1. https://my.telegram.org se `API_ID` + `API_HASH` lo
+2. Ek baar session string generate karo (Pyrogram string session)
+3. `cast-service` me set karo:
 
-### Option A – Python Userbot (fastest to ship)
-- Pyrogram / Telethon + pytgcalls
-- Backend calls an internal HTTP endpoint on the userbot service
-- Userbot joins the chat’s VC and plays the audio URL
-
-### Option B – Pure Go (harder)
-- Use gotd + custom voice streaming (complex Opus handling)
-
-### Recommended for v1
-Use a small separate Python service:
-
-```
-cast-service/
-  ├── main.py          # FastAPI or aiohttp
-  ├── player.py        # pytgcalls wrapper
-  └── requirements.txt
+```env
+API_ID=12345678
+API_HASH=your_api_hash
+SESSION_STRING=1BVtsO...   # preferred
 ```
 
-Backend endpoint:
+4. Cast service start karo — ab `/health` me `cast_enabled: true` aayega
+5. Frontend automatically Cast button dikhayega
+
+## Flow (when enabled)
 
 ```
-POST /api/cast
-{
-  "chat_id": -100xxxxxxxxxx,
-  "track_id": "...",
-  "stream_url": "signed-url"
-}
+Mini App (group se open)
+   → POST /api/cast { chat_id, track_id }
+   → Backend resolves stream URL
+   → cast-service userbot joins group VC
+   → Audio plays in Voice Chat
 ```
 
-## Security
-- Only allow cast if the requesting user is admin / has permission in that group
-- Rate-limit cast requests
-- Signed stream URL still required
+## Without session
 
-## Status
-Scaffold ready. Userbot service + endpoint wiring is the next concrete task.
+- Personal Mode (Mini App streaming) 100% works
+- Search, Player, Waveform, Lyrics, Sync Rooms — sab chalega
+- Sirf "Cast to Group Voice Chat" feature absent rahega
