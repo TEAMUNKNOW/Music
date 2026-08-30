@@ -38,6 +38,17 @@ export async function getTrack(id: string, source?: string) {
   return request(`/api/track/${encodeURIComponent(id)}${params}`);
 }
 
+/** Returns whether Cast-to-VC is available (session configured) */
+export async function getCastStatus(): Promise<{ cast_enabled: boolean; reason?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/cast/status`);
+    if (!res.ok) return { cast_enabled: false };
+    return res.json();
+  } catch {
+    return { cast_enabled: false, reason: 'unreachable' };
+  }
+}
+
 export function getWsUrl(roomId: string, userId: string) {
   const base = API_BASE.replace('http', 'ws');
   return `${base}/ws?room=${encodeURIComponent(roomId)}&user=${encodeURIComponent(userId)}`;
