@@ -1,32 +1,29 @@
 """
-Cast-to-Voice-Chat service
-Receives stream URL from Go backend and plays it in a Telegram group Voice Chat.
+Cast-to-Voice-Chat service (OPTIONAL)
+
+Only starts the userbot when SESSION_STRING (or session file) is provided.
+If no session → service stays up but reports ready=false and /cast returns 503.
 """
 
 import os
-import asyncio
 from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from pyrogram import Client
-from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import AudioPiped
-from pytgcalls.types.input_stream.quality import HighQualityAudio
 
 load_dotenv()
 
-API_ID = int(os.getenv("API_ID", "0"))
-API_HASH = os.getenv("API_HASH", "")
-SESSION_STRING = os.getenv("SESSION_STRING", "")  # preferred
-# or use session file name
-SESSION_NAME = os.getenv("SESSION_NAME", "music_cast")
+API_ID = int(os.getenv("API_ID", "0") or "0")
+API_HASH = os.Getenv("API_HASH", "") or ""
+SESSION_STRING = os.getenv("SESSION_STRING", "") or ""
+SESSION_NAME = os.Getenv("SESSION_NAME", "music_cast")
 
-app = FastAPI(title="Music Cast Service")
+app = FastAPI(title="Music Cast Service (Optional)")
 
-pyro: Optional[Client] = None
-calls: Optional[PyTgCalls] = None
+pyro = None
+calls = None
+CAST_ENABLED = False
 
 
 class CastBody(BaseModel):
@@ -37,44 +34,82 @@ class CastBody(BaseModel):
     track_id: str = ""
 
 
+def _has_credentials() -> bool:
+    return bool(API_ID and API_HASH and (SESSION_STRING or SESSION_NAME))
+
+
 @app.on_event("startup")
 async def startup():
-    global pyro, calls
-    if not API_ID or not API_HASH:
-        print("[WARN] API_ID / API_HASH missing — cast service will not work until configured")
+    global pyro, calls, CAST_ENABLED
+
+    if not _has_credentials():
+        print("[INFO] No session / API credentials — Cast-to-VC disabled (optional feature)")
+        CAST_ENABLED = False
         return
 
-    if SESSION_STRING:
-        pyro = Client("music_cast", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
-    else:
-        pyro = Client(SESSION_NAME, api_id=API_ID, api_hash=API_HASH)
+    try:
+        from pyrogram import Client
+        from pytgcalls import PyTgCalls
 
-    await pyro.start()
-    calls = PyTgCalls(pyro)
-    await calls.start()
-    print("[OK] Cast service ready")
+        if SESSION_STRING:
+            pyro = Client(
+                "music_cast",
+                api_id=API_ID,
+                api_hash=API_HASH,
+                session_string=SESSION_STRING,
+            )
+        else:
+            pyro = Client(SESSION_NAME, api_id=API_ID, api_hash=API_HASH)
+
+        await pyro.start()
+        calls = PyTgCalls(pyro)
+        await calls.start()
+        CAST_ENABLED = True
+        print("[OK] Cast-to-VC enabled — userbot ready")
+    except Exception as e:
+        print(f"[WARN] Failed to start userbot: {e}")
+        print("[INFO] Cast-to-VC remains disabled")
+        CAST_ENABLED = False
+        pyro = None
+        calls = None
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    global calls, pyro
     if calls:
-        await calls.stop()
+        try:
+            await calls.stop()
+        except Exception:
+            pass
     if pyro:
-        await pyro.stop()
+        try:
+            await pyro.stop()
+        except Exception:
+            pass
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "ready": calls is not None}
+    return {
+        "status": "ok",
+        "cast_enabled": CAST_ENABLED,
+        "ready": CAST_ENABLED,
+    }
 
 
 @app.post("/cast")
 async def cast(body: CastBody):
-    if not calls or not pyro:
-        raise HTTPException(503, "Cast service not configured (missing API_ID/API_HASH/session)")
+    if not CAST_ENABLED or not calls:
+        raise HTTPException(
+            status_code=503,
+            detail="Cast-to-VC is disabled. Provide SESSION_STRING (and API_ID/API_HASH) to enable.",
+        )
 
     try:
-        # Leave previous stream in this chat if any
+        from pytgcalls.types.input_stream import AudioPiped
+        from pytgcalls.types.input_stream.quality import HighQualityAudio
+
         try:
             await calls.leave_group_call(body.chat_id)
         except Exception:
@@ -82,10 +117,7 @@ async def cast(body: CastBody):
 
         await calls.join_group_call(
             body.chat_id,
-            AudioPiped(
-                body.stream_url,
-                HighQualityAudio(),
-            ),
+            AudioPiped(body.stream_url, HighQualityAudio()),
         )
         return {
             "status": "playing",
@@ -94,18 +126,18 @@ async def cast(body: CastBody):
             "artist": body.artist,
         }
     except Exception as e:
-        raise HTTPException(500, f"cast failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"cast failed: {str(e)}")
 
 
 @app.post("/stop")
 async def stop(chat_id: int):
-    if not calls:
-        raise HTTPException(503, "not ready")
+    if not CAST_ENABLED or not calls:
+        raise HTTPException(status_code=503, detail="Cast-to-VC is disabled")
     try:
         await calls.leave_group_call(chat_id)
         return {"status": "stopped"}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
