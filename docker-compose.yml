@@ -20,8 +20,22 @@ services:
       - BOT_TOKEN=${BOT_TOKEN}
       - REDIS_URL=redis://redis:6379
       - STREAM_SECRET=${STREAM_SECRET}
+      - BASE_URL=${BASE_URL:-http://localhost:3000}
+      - CAST_SERVICE_URL=http://cast:4000
     depends_on:
       - redis
+    restart: unless-stopped
+
+  cast:
+    build:
+      context: ./cast-service
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - API_ID=${API_ID}
+      - API_HASH=${API_HASH}
+      - SESSION_STRING=${SESSION_STRING}
     restart: unless-stopped
 
 volumes:
