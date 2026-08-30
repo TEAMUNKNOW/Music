@@ -1,13 +1,11 @@
 import WebApp from '@twa-dev/sdk';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+// Empty VITE_API_BASE means same-origin. This lets the unified Railway
+// deployment serve both the Mini App and Go API from one domain.
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 function getInitData(): string {
-  try {
-    return WebApp.initData || '';
-  } catch {
-    return '';
-  }
+  try { return WebApp.initData || ''; } catch { return ''; }
 }
 
 async function request(path: string, options: RequestInit = {}) {
@@ -16,12 +14,7 @@ async function request(path: string, options: RequestInit = {}) {
     'X-Telegram-Init-Data': getInitData(),
     ...(options.headers as Record<string, string> || {}),
   };
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-
+  const res = await fetch(`${API_BASE}${path}`, {...options, headers});
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `HTTP ${res.status}`);
@@ -29,28 +22,19 @@ async function request(path: string, options: RequestInit = {}) {
   return res.json();
 }
 
-export async function searchTracks(q: string) {
-  return request(`/api/search?q=${encodeURIComponent(q)}`);
-}
-
+export async function searchTracks(q: string) { return request(`/api/search?q=${encodeURIComponent(q)}`); }
 export async function getTrack(id: string, source?: string) {
   const params = source ? `?source=${encodeURIComponent(source)}` : '';
   return request(`/api/track/${encodeURIComponent(id)}${params}`);
 }
 
-/** Returns whether Cast-to-VC is available (session configured) */
 export async function getCastStatus(): Promise<{ cast_enabled: boolean; reason?: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/cast/status`);
-    if (!res.ok) return { cast_enabled: false };
-    return res.json();
-  } catch {
-    return { cast_enabled: false, reason: 'unreachable' };
-  }
+  try { const res = await fetch(`${API_BASE}/api/cast/status`); if (!res.ok) return {cast_enabled:false}; return res.json(); }
+  catch { return {cast_enabled:false,reason:'unreachable'}; }
 }
 
 export function getWsUrl(roomId: string, userId: string) {
-  const base = API_BASE.replace('http', 'ws');
+  const base = API_BASE ? API_BASE.replace(/^http/, 'ws') : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
   return `${base}/ws?room=${encodeURIComponent(roomId)}&user=${encodeURIComponent(userId)}`;
 }
 
