@@ -26,13 +26,13 @@
   async function play(item: any) {
     try {
       WebApp.HapticFeedback.impactOccurred('medium');
-      const meta = await getTrack(item.id);
+      const meta = await getTrack(item.id, item.source);
       const track = {
         id: item.id,
-        title: item.title,
-        artist: item.artist,
-        duration: item.duration,
-        thumbnail: item.thumbnail,
+        title: meta.title || item.title,
+        artist: meta.artist || item.artist,
+        duration: meta.duration || item.duration,
+        thumbnail: meta.thumbnail || item.thumbnail,
         streamUrl: meta.streamUrl,
       };
       queue.update(q => {
@@ -88,9 +88,11 @@
           </div>
           <div class="min-w-0 flex-1">
             <div class="text-sm font-medium truncate">{item.title}</div>
-            <div class="text-xs text-zinc-400 truncate">{item.artist}</div>
+            <div class="text-xs text-zinc-400 truncate">{item.artist} · {item.source || 'yt'}</div>
           </div>
-          <div class="text-xs text-zinc-600">{Math.floor(item.duration / 60)}:{String(item.duration % 60).padStart(2, '0')}</div>
+          <div class="text-xs text-zinc-600">
+            {item.duration ? `${Math.floor(item.duration / 60)}:${String(item.duration % 60).padStart(2, '0')}` : ''}
+          </div>
         </button>
       {/each}
     </div>
