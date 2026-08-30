@@ -17,26 +17,19 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-
 	redisAddr := os.Getenv("REDIS_URL")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
-	}
+	if redisAddr == "" { redisAddr = "localhost:6379" }
 
 	stream.InitRedis(redisAddr)
 	search.Init(redisAddr)
 	handlers.InitRedis(redisAddr)
+	startTelegramBot()
 
-	app := fiber.New(fiber.Config{AppName: "Music Streaming Backend"})
+	app := fiber.New(fiber.Config{AppName:"Music Streaming Backend"})
 	app.Use(logger.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept, X-Telegram-Init-Data",
-	}))
+	app.Use(cors.New(cors.Config{AllowOrigins:"*",AllowHeaders:"Origin, Content-Type, Accept, X-Telegram-Init-Data"}))
 
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
-	})
+	app.Get("/health", func(c *fiber.Ctx) error { return c.JSON(fiber.Map{"status":"ok","bot_enabled":os.Getenv("BOT_TOKEN")!=""}) })
 	app.Get("/stream/:id", handlers.Stream)
 	app.Get("/api/cast/status", handlers.CastStatus)
 
@@ -44,14 +37,9 @@ func main() {
 	api.Get("/search", handlers.Search)
 	api.Get("/track/:id", handlers.GetTrack)
 	api.Post("/cast", handlers.CastToVC)
-
 	app.Get("/ws", handlers.WebSocketUpgrade)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
-	}
-
-	log.Printf("Music backend listening on :%s", port)
-	log.Fatal(app.Listen(":" + port))
+	port := os.Getenv("PORT"); if port=="" { port="3000" }
+	log.Printf("Music backend listening on :%s",port)
+	log.Fatal(app.Listen(":"+port))
 }
