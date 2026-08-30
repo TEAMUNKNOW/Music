@@ -12,7 +12,7 @@ Zero chat spam • Sub-200ms buffering • Real-time Listen Together • Fully s
 |---------------------------|----------------------|-------------------------------|
 | UI                        | Chat + Inline buttons| Native Telegram Mini App      |
 | Chat Spam                 | Heavy                | Zero                          |
-| Buffering                 | Full download + FFmpeg | Instant HLS / Byte-Range     |
+| Buffering                 | Full download + FFmpeg | Instant Byte-Range streaming |
 | Listen Together           | None / basic         | Real-time WebSocket Sync Rooms|
 | Performance               | High RAM/CPU         | ~40MB for 10k listeners       |
 | Security                  | Weak / none          | HMAC + Signed Stream URLs     |
@@ -25,41 +25,55 @@ Zero chat spam • Sub-200ms buffering • Real-time Listen Together • Fully s
 [ Telegram Client ]
         │
         ▼  (opens Mini App)
-[ Svelte / React TMA ]  ←── WebSocket + HMAC verified API
+[ Svelte TMA ]  ←── WebSocket + HMAC verified API
         │
         ▼
 [ Go Backend (Fiber) ]
         │
    ┌────┴────┐
    ▼         ▼
-[ Redis ]  [ HLS / Byte-Range Streamer ]
+[ Redis ]  [ Byte-Range Streamer + Signed URLs ]
 ```
 
 ### Modes
-1. **Personal Mode** — High quality 320kbps streaming inside Mini App (no VC needed)
+1. **Personal Mode** — High quality streaming inside Mini App (no VC needed)
 2. **Group Voice Chat Mode** — "Cast to VC" button → userbot streams to Telegram Voice Chat
 
 ---
 
-## Tech Stack
+## What's Already Implemented
 
-### Frontend (Telegram Mini App)
-- **Framework**: Svelte + Vite (or React)
-- **Styling**: Tailwind CSS
-- **Audio**: Howler.js / Web Audio API
-- **Telegram SDK**: `@twa-dev/sdk`
-- Features: Haptic feedback, theme sync, 60/120 FPS UI, live waveform, LRC lyrics, swipe gestures
+### Backend (Go)
+- [x] Fiber server + CORS + logging
+- [x] Telegram WebApp `initData` HMAC-SHA256 authentication
+- [x] Signed streaming URLs (90s expiry)
+- [x] Byte-range streaming engine + Redis cache support
+- [x] Multi-source search (Piped YouTube + JioSaavn style)
+- [x] Real-time WebSocket Sync Rooms (play/pause/seek/track sync)
+- [x] Docker + docker-compose (Redis + backend)
 
-### Backend
-- **Language**: Go (Fiber / Gin)
-- **Streaming**: HTTP Byte-Range + HLS chunking
-- **Cache**: Redis (in-memory audio + metadata)
-- **Auth**: Telegram WebApp `initData` HMAC-SHA256 verification
-- **Stream Security**: Time-limited signed URLs (1-min expiry)
-- **Search**: YouTube (Piped / Invidious) + JioSaavn metadata
+### Frontend (Svelte + Vite + Tailwind)
+- [x] Telegram Mini App shell + theme + haptic
+- [x] Full-screen Player (album art, seekbar, controls, volume)
+- [x] Search screen with results + play
+- [x] Player store (Howler.js streaming)
+- [x] API client with initData header
+- [x] Bottom navigation (Home / Search / Rooms)
 
-### Optional
-- Userbot for Group Voice Chat casting (Pyrogram / Telethon or Go equivalent)
+### Docs
+- [x] Architecture
+- [x] Security model
+- [x] Cast-to-VC design
+
+---
+
+## Still TODO (next iteration)
+- [ ] Resolve real audio source URL from Piped/Invidious streams
+- [ ] Live waveform visualizer
+- [ ] Synchronized LRC lyrics
+- [ ] Cast-to-VC userbot service (Pyrogram + pytgcalls)
+- [ ] Proper room UI + join codes
+- [ ] Production hardening + rate limits
 
 ---
 
@@ -67,68 +81,57 @@ Zero chat spam • Sub-200ms buffering • Real-time Listen Together • Fully s
 
 ```
 Music/
-├── frontend/                 # Telegram Mini App (Svelte + Vite)
+├── frontend/                 # Svelte Telegram Mini App
 │   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── lib/
-│   │   └── stores/
-│   ├── public/
+│   │   ├── components/       # Player.svelte, Search.svelte
+│   │   ├── stores/           # player.ts
+│   │   └── lib/              # api.ts
 │   └── package.json
-├── backend/                  # Go streaming + API server
-│   ├── cmd/
+├── backend/
 │   ├── internal/
-│   │   ├── auth/
-│   │   ├── stream/
-│   │   ├── search/
-│   │   ├── sync/
-│   │   └── cache/
-│   ├── go.mod
-│   └── main.go
+│   │   ├── auth/             # Telegram HMAC
+│   │   ├── stream/           # Signed URLs + byte-range
+│   │   ├── search/           # Piped + JioSaavn
+│   │   ├── sync/             # WebSocket rooms
+│   │   └── handlers/
+│   ├── main.go
+│   └── Dockerfile
 ├── docs/
-│   ├── architecture.md
-│   ├── api.md
-│   └── security.md
 ├── docker-compose.yml
 └── README.md
 ```
 
 ---
 
-## Key Features Roadmap
-
-- [x] Architecture design
-- [ ] Mini App UI (Home, Player, Search, Sync Room)
-- [ ] Go backend skeleton + HMAC auth
-- [ ] Instant HLS / Byte-Range streaming
-- [ ] Redis caching layer
-- [ ] Real-time WebSocket sync rooms
-- [ ] Signed streaming URLs
-- [ ] Cast to Telegram Voice Chat
-- [ ] Live waveform + synchronized lyrics
-
----
-
-## Getting Started (coming soon)
+## Quick Start
 
 ```bash
-# Frontend
-cd frontend && npm install && npm run dev
+# 1. Environment
+cp .env.example .env
+# Fill BOT_TOKEN and STREAM_SECRET
 
-# Backend
-cd backend && go run .
+# 2. Backend + Redis
+docker compose up -d
+# or locally:
+cd backend && go mod tidy && go run .
+
+# 3. Frontend
+cd frontend
+npm install
+npm run dev
 ```
+
+Then open the Mini App via BotFather / @BotFather web app setup.
 
 ---
 
 ## Security Notes
 
-- All API requests must include valid Telegram `initData`
-- Backend verifies HMAC-SHA256 using Bot Token
-- Audio stream links are short-lived signed tokens
+- All `/api/*` requests require valid Telegram `initData`
+- Stream links are HMAC-signed and expire in ~90 seconds
 - No permanent public audio URLs
 
 ---
 
-**Status**: Scaffolding in progress  
-Built for speed, security, and native Telegram experience.
+**Status**: Core architecture + UI + streaming + search + sync rooms implemented  
+Ready for source-resolution layer and Cast-to-VC service.
