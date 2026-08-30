@@ -11,10 +11,24 @@ import (
 
 	"github.com/TEAMUNKNOW/Music/internal/auth"
 	"github.com/TEAMUNKNOW/Music/internal/handlers"
+	"github.com/TEAMUNKNOW/Music/internal/search"
+	"github.com/TEAMUNKNOW/Music/internal/stream"
 )
 
 func main() {
 	_ = godotenv.Load()
+
+	redisAddr := os.Getenv("REDIS_URL")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+	// strip redis:// if present
+	if len(redisAddr) > 8 && redisAddr[:8] == "redis://" {
+		redisAddr = redisAddr[8:]
+	}
+
+	stream.InitRedis(redisAddr)
+	search.Init(redisAddr)
 
 	app := fiber.New(fiber.Config{
 		AppName: "Music Streaming Backend",
@@ -22,23 +36,23 @@ func main() {
 
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "https://web.telegram.org,https://*.telegram.org",
+		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, X-Telegram-Init-Data",
 	}))
 
-	// Public health
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	// Protected API group
-	api := app.Group("/api", auth.TelegramAuthMiddleware)
+	// Public stream endpoint (protected by signature)
+	app.Get("/stream/:id", handlers.Stream)
 
+	// Protected API
+	api := app.Group("/api", auth.TelegramAuthMiddleware)
 	api.Get("/search", handlers.Search)
 	api.Get("/track/:id", handlers.GetTrack)
-	api.Get("/stream/:id", handlers.Stream) // signed URL preferred, this is fallback
 
-	// WebSocket for Sync Rooms
+	// WebSocket Sync Rooms
 	app.Get("/ws", handlers.WebSocketUpgrade)
 
 	port := os.Getenv("PORT")
@@ -46,5 +60,6 @@ func main() {
 		port = "3000"
 	}
 
+	log.Printf("Music backend listening on :%s", port)
 	log.Fatal(app.Listen(":" + port))
 }
