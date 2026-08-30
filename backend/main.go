@@ -47,6 +47,9 @@ func main() {
 	// Public stream endpoint (protected by signature)
 	app.Get("/stream/:id", handlers.Stream)
 
+	// Public cast status (no auth needed — just feature flag)
+	app.Get("/api/cast/status", handlers.CastStatus)
+
 	// Protected API
 	api := app.Group("/api", auth.TelegramAuthMiddleware)
 	api.Get("/search", handlers.Search)
