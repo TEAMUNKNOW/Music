@@ -17,13 +17,8 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-	redisAddr := os.Getenv("REDIS_URL")
-	if redisAddr == "" { redisAddr = "localhost:6379" }
-
-	stream.InitRedis(redisAddr)
-	search.Init(redisAddr)
-	handlers.InitRedis(redisAddr)
-	startTelegramBot()
+	redisAddr := os.Getenv("REDIS_URL"); if redisAddr=="" { redisAddr="localhost:6379" }
+	stream.InitRedis(redisAddr); search.Init(redisAddr); handlers.InitRedis(redisAddr); startTelegramBot()
 
 	app := fiber.New(fiber.Config{AppName:"Music Streaming Backend"})
 	app.Use(logger.New())
@@ -32,12 +27,17 @@ func main() {
 	app.Get("/health", func(c *fiber.Ctx) error { return c.JSON(fiber.Map{"status":"ok","bot_enabled":os.Getenv("BOT_TOKEN")!=""}) })
 	app.Get("/stream/:id", handlers.Stream)
 	app.Get("/api/cast/status", handlers.CastStatus)
-
 	api := app.Group("/api", auth.TelegramAuthMiddleware)
-	api.Get("/search", handlers.Search)
-	api.Get("/track/:id", handlers.GetTrack)
-	api.Post("/cast", handlers.CastToVC)
+	api.Get("/search", handlers.Search); api.Get("/track/:id", handlers.GetTrack); api.Post("/cast", handlers.CastToVC)
 	app.Get("/ws", handlers.WebSocketUpgrade)
+
+	// The unified image contains the Vite build, so the same Railway domain
+	// serves the Mini App and the Go API.
+	app.Static("/", "/app/frontend/dist")
+	app.Get("/*", func(c *fiber.Ctx) error {
+		if len(c.Path()) >= 4 && c.Path()[:4] == "/api" { return c.Status(404).JSON(fiber.Map{"error":"not found"}) }
+		return c.SendFile("/app/frontend/dist/index.html")
+	})
 
 	port := os.Getenv("PORT"); if port=="" { port="3000" }
 	log.Printf("Music backend listening on :%s",port)
