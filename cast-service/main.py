@@ -1,12 +1,11 @@
 """
-Cast-to-Voice-Chat service (OPTIONAL)
+Optional Cast-to-Voice-Chat service.
 
-Only starts the userbot when SESSION_STRING (or session file) is provided.
-If no session → service stays up but reports ready=false and /cast returns 503.
+The service always starts normally. VC casting remains disabled unless
+API_ID, API_HASH and SESSION_STRING are explicitly configured.
 """
 
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -15,9 +14,9 @@ from pydantic import BaseModel
 load_dotenv()
 
 API_ID = int(os.getenv("API_ID", "0") or "0")
-API_HASH = os.Getenv("API_HASH", "") or ""
+API_HASH = os.getenv("API_HASH", "") or ""
 SESSION_STRING = os.getenv("SESSION_STRING", "") or ""
-SESSION_NAME = os.Getenv("SESSION_NAME", "music_cast")
+SESSION_NAME = os.getenv("SESSION_NAME", "music_cast") or "music_cast"
 
 app = FastAPI(title="Music Cast Service (Optional)")
 
@@ -35,15 +34,16 @@ class CastBody(BaseModel):
 
 
 def _has_credentials() -> bool:
-    return bool(API_ID and API_HASH and (SESSION_STRING or SESSION_NAME))
+    return bool(API_ID and API_HASH and SESSION_STRING)
 
 
 @app.on_event("startup")
 async def startup():
     global pyro, calls, CAST_ENABLED
 
+    # No credentials = service stays healthy, but VC casting stays OFF.
     if not _has_credentials():
-        print("[INFO] No session / API credentials — Cast-to-VC disabled (optional feature)")
+        print("[INFO] VC Cast disabled — API_ID/API_HASH/SESSION_STRING not configured")
         CAST_ENABLED = False
         return
 
@@ -51,24 +51,19 @@ async def startup():
         from pyrogram import Client
         from pytgcalls import PyTgCalls
 
-        if SESSION_STRING:
-            pyro = Client(
-                "music_cast",
-                api_id=API_ID,
-                api_hash=API_HASH,
-                session_string=SESSION_STRING,
-            )
-        else:
-            pyro = Client(SESSION_NAME, api_id=API_ID, api_hash=API_HASH)
-
+        pyro = Client(
+            "music_cast",
+            api_id=API_ID,
+            api_hash=API_HASH,
+            session_string=SESSION_STRING,
+        )
         await pyro.start()
         calls = PyTgCalls(pyro)
         await calls.start()
         CAST_ENABLED = True
-        print("[OK] Cast-to-VC enabled — userbot ready")
+        print("[OK] VC Cast enabled — userbot ready")
     except Exception as e:
-        print(f"[WARN] Failed to start userbot: {e}")
-        print("[INFO] Cast-to-VC remains disabled")
+        print(f"[WARN] Failed to start VC Cast: {e}")
         CAST_ENABLED = False
         pyro = None
         calls = None
@@ -103,7 +98,7 @@ async def cast(body: CastBody):
     if not CAST_ENABLED or not calls:
         raise HTTPException(
             status_code=503,
-            detail="Cast-to-VC is disabled. Provide SESSION_STRING (and API_ID/API_HASH) to enable.",
+            detail="VC Cast is disabled. Configure API_ID, API_HASH and SESSION_STRING to enable it.",
         )
 
     try:
@@ -132,7 +127,7 @@ async def cast(body: CastBody):
 @app.post("/stop")
 async def stop(chat_id: int):
     if not CAST_ENABLED or not calls:
-        raise HTTPException(status_code=503, detail="Cast-to-VC is disabled")
+        raise HTTPException(status_code=503, detail="VC Cast is disabled")
     try:
         await calls.leave_group_call(chat_id)
         return {"status": "stopped"}
@@ -142,4 +137,4 @@ async def stop(chat_id: int):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=4000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=4000, reload=False)
