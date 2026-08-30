@@ -22,18 +22,12 @@ func main() {
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
 	}
-	if len(redisAddr) > 8 && redisAddr[:8] == "redis://" {
-		redisAddr = redisAddr[8:]
-	}
 
 	stream.InitRedis(redisAddr)
 	search.Init(redisAddr)
 	handlers.InitRedis(redisAddr)
 
-	app := fiber.New(fiber.Config{
-		AppName: "Music Streaming Backend",
-	})
-
+	app := fiber.New(fiber.Config{AppName: "Music Streaming Backend"})
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
@@ -43,20 +37,14 @@ func main() {
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
-
-	// Public stream endpoint (protected by signature)
 	app.Get("/stream/:id", handlers.Stream)
-
-	// Public cast status (no auth needed — just feature flag)
 	app.Get("/api/cast/status", handlers.CastStatus)
 
-	// Protected API
 	api := app.Group("/api", auth.TelegramAuthMiddleware)
 	api.Get("/search", handlers.Search)
 	api.Get("/track/:id", handlers.GetTrack)
 	api.Post("/cast", handlers.CastToVC)
 
-	// WebSocket Sync Rooms
 	app.Get("/ws", handlers.WebSocketUpgrade)
 
 	port := os.Getenv("PORT")
