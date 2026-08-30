@@ -22,13 +22,13 @@ func main() {
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
 	}
-	// strip redis:// if present
 	if len(redisAddr) > 8 && redisAddr[:8] == "redis://" {
 		redisAddr = redisAddr[8:]
 	}
 
 	stream.InitRedis(redisAddr)
 	search.Init(redisAddr)
+	handlers.InitRedis(redisAddr)
 
 	app := fiber.New(fiber.Config{
 		AppName: "Music Streaming Backend",
@@ -51,6 +51,7 @@ func main() {
 	api := app.Group("/api", auth.TelegramAuthMiddleware)
 	api.Get("/search", handlers.Search)
 	api.Get("/track/:id", handlers.GetTrack)
+	api.Post("/cast", handlers.CastToVC)
 
 	// WebSocket Sync Rooms
 	app.Get("/ws", handlers.WebSocketUpgrade)
