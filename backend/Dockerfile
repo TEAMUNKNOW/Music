@@ -1,10 +1,12 @@
 FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
-COPY go.mod go.sum* ./
-RUN go mod download
+COPY go.mod ./
 COPY . .
-RUN CGO_ENABLED=0 go build -o /music-backend .
+
+# Generate/repair go.sum during the Railway build. This keeps the repo
+# deployable even when go.sum was not committed.
+RUN go mod tidy && CGO_ENABLED=0 go build -o /music-backend .
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
