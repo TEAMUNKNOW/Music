@@ -33,8 +33,9 @@ export async function searchTracks(q: string) {
   return request(`/api/search?q=${encodeURIComponent(q)}`);
 }
 
-export async function getTrack(id: string) {
-  return request(`/api/track/${encodeURIComponent(id)}`);
+export async function getTrack(id: string, source?: string) {
+  const params = source ? `?source=${encodeURIComponent(source)}` : '';
+  return request(`/api/track/${encodeURIComponent(id)}${params}`);
 }
 
 export function getWsUrl(roomId: string, userId: string) {
