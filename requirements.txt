@@ -9,4 +9,4 @@ py-tgcalls==2.3.3
 py-yt-search~=0.6.1
 python-dotenv~=1.2.1
 yt-dlp[default]>=2026.7.0,<2027
-jiosaavnpy>=0.1.0
+jiosaavnpy==0.1.3
