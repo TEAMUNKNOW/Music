@@ -5,8 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 RUN apt-get update -y && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends \
-        ffmpeg curl unzip git \
+    && apt-get install -y --no-install-recommends ffmpeg curl unzip git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL https://deno.land/install.sh | sh
@@ -21,4 +20,4 @@ RUN pip3 install -U pip && pip3 install -U -r requirements.txt \
 
 COPY . .
 
-CMD ["python3", "-m", "anony"]
+CMD ["python3", "bot.py"]
